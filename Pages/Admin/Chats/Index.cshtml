@@ -1,0 +1,44 @@
+﻿@page
+@model BelovskayaMonitoring.Pages.Admin.Chats.IndexModel
+@{
+    ViewData["Title"] = "Управление чатами";
+}
+
+<div class="container mt-4">
+    <h2>Управление чатами</h2>
+    <hr />
+
+    <div class="mb-3">
+        <a asp-page="./Create" class="btn btn-success">Создать новый чат</a>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.StatusMessage))
+    {
+        <div class="alert alert-info">@Model.StatusMessage</div>
+    }
+
+    <table class="table table-dark-striped">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Участников</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var chat in Model.Chats)
+            {
+                <tr>
+                    <td>@chat.Name</td>
+                    <td>@chat.ParticipantCount</td>
+                    <td>
+                        <a asp-page="./Edit" asp-route-chatId="@chat.Id" class="btn btn-sm btn-primary">Участники</a>
+                        <form method="post" asp-page-handler="Delete" asp-route-chatId="@chat.Id" style="display:inline;" onsubmit="return confirm('Удалить чат @chat.Name?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

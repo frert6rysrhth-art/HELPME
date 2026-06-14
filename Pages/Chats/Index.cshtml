@@ -1,0 +1,137 @@
+﻿@page
+@model BelovskayaMonitoring.Pages.Chats.IndexModel
+@{
+    ViewData["Title"] = "Мои чаты";
+}
+
+<div class="shield-panel">
+    <div class="d-flex justify-content-between align-items-center panel-title" style="border-bottom: none; margin-bottom: 1rem;">
+        <span>Мои чаты</span>
+        <a asp-page="/Chats/Create" class="btn btn-primary btn-sm">Создать чат</a>
+    </div>
+
+    @if (Model.ChatPreviews.Count == 0)
+    {
+        <div class="text-secondary">Вы пока не участвуете ни в одном чате.</div>
+    }
+    else
+    {
+        <div class="list-group" id="chatList">
+            @foreach (var chat in Model.ChatPreviews)
+            {
+                <div class="list-group-item border-0 mb-2" style="background-color: var(--bg-panel-alt); color: var(--text-primary); display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem;">
+                    <!-- Аватар чата -->
+                    <div style="width: 44px; height: 44px; border-radius: 50%; background-color: @(chat.IsSystem ? "#6c757d" : (Model.UserAvatarColors?.GetValueOrDefault(chat.ChatId, "#3366CC") ?? "#3366CC")); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 18px; flex-shrink: 0;">
+                        @(chat.ChatName?.Substring(0, 1).ToUpper() ?? "?")
+                    </div>
+                    <!-- Превью -->
+                    <a asp-page="/Chats/Room" asp-route-chatId="@chat.ChatId" class="flex-grow-1 text-decoration-none" style="color: var(--text-primary);">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>
+                                @chat.ChatName
+                                @if (chat.IsSystem)
+                                {
+                                    <span class="badge" style="background-color: var(--border-color); font-size: 0.7rem;">Системный</span>
+                                }
+                                else if (chat.IsPinned)
+                                {
+                                    <span class="badge" style="background-color: var(--accent-yellow); color: #000; font-size: 0.7rem;">⭐ Закреплён</span>
+                                }
+                            </strong>
+                            <small class="mono-font" style="color: var(--text-secondary);">@(chat.LastMessageTime?.ToString("HH:mm") ?? chat.CreatedAt.ToString("dd.MM.yyyy"))</small>
+                        </div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                            @if (!string.IsNullOrEmpty(chat.LastMessageText))
+                            {
+                                <span>@chat.LastSenderName</span>
+                                @if (!string.IsNullOrEmpty(chat.LastSenderEmail) && chat.LastSenderName != "Система")
+                                {
+                                    <small style="color: var(--text-secondary);">(@chat.LastSenderEmail)</small>
+                                }
+                                <span>: @chat.LastMessageText.Substring(0, Math.Min(60, chat.LastMessageText.Length))@(chat.LastMessageText.Length > 60 ? "..." : "")</span>
+                            }
+                            else
+                            {
+                                <span>Нет сообщений</span>
+                            }
+                        </div>
+                    </a>
+                    <!-- Кнопки действий -->
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="/api/export/chat/@chat.ChatId" class="btn btn-outline-secondary" title="Экспорт в TXT">📄</a>
+                        @if (!chat.IsSystem)
+                        {
+                            <button type="button" class="btn btn-outline-warning" title="Закрепить/Открепить" onclick="togglePin(@chat.ChatId, this)">⭐</button>
+                        }
+                        <button type="button" class="btn btn-outline-info" title="Информация о чате" onclick="openChatInfo(@chat.ChatId, '@chat.ChatName', @(chat.IsSystem ? "true" : "false"))">ℹ️</button>
+                        @if (Model.IsAdmin && !chat.IsSystem)
+                        {
+                            <form method="post" asp-page-handler="DeleteChat" asp-route-chatId="@chat.ChatId" onsubmit="return confirm('Удалить чат «@chat.ChatName»? Это действие необратимо.');" class="m-0">
+                                <button type="submit" class="btn btn-outline-danger" title="Удалить чат">🗑</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Модальное окно информации о чате (без изменений) -->
+<div class="modal fade" id="chatInfoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background-color: var(--bg-panel); color: var(--text-primary);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color);">
+                <h5 class="modal-title">Информация о чате</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Название:</strong> <span id="ciName"></span></p>
+                <p><strong>Тип:</strong> <span id="ciType"></span></p>
+                <p><strong>Участники:</strong></p>
+                <ul id="ciParticipants" class="list-unstyled"></ul>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        async function openChatInfo(chatId, chatName, isSystem) {
+            document.getElementById('ciName').textContent = chatName;
+            document.getElementById('ciType').textContent = isSystem ? 'Системный' : 'Обычный';
+            const participantsList = document.getElementById('ciParticipants');
+            participantsList.innerHTML = '';
+            try {
+                const response = await fetch(`/api/users/chat/${chatId}`);
+                if (response.ok) {
+                    const users = await response.json();
+                    users.forEach(u => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: ${u.avatarColor}; margin-right: 5px;"></span> ${u.firstName} ${u.lastName} (${u.email})`;
+                        participantsList.appendChild(li);
+                    });
+                }
+            } catch (e) {
+                console.error(e);
+            }
+            new bootstrap.Modal(document.getElementById('chatInfoModal')).show();
+        }
+
+        async function togglePin(chatId, btn) {
+            try {
+                const res = await fetch(`/api/chatsapi/${chatId}/pin`, { method: 'POST' });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при закреплении.');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    </script>
+}

@@ -1,0 +1,28 @@
+﻿@page
+@model BelovskayaMonitoring.Pages.Admin.Chats.CreateModel
+@{
+    ViewData["Title"] = "Создать чат";
+}
+
+<div class="container mt-4">
+    <h2>Создать новый чат</h2>
+    <hr />
+
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Название чата</label>
+            <input name="ChatName" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Участники (выберите одного или нескольких)</label>
+            <select name="SelectedUserIds" multiple class="form-select" size="6">
+                @foreach (var user in Model.AllUsers)
+                {
+                    <option value="@user.Id">@user.Email</option>
+                }
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Создать</button>
+        <a asp-page="./Index" class="btn btn-secondary">Отмена</a>
+    </form>
+</div>

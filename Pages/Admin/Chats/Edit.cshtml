@@ -1,0 +1,39 @@
+﻿@page "{chatId:int}"
+@model BelovskayaMonitoring.Pages.Admin.Chats.EditModel
+@{
+    ViewData["Title"] = "Участники чата";
+}
+
+<div class="shield-panel">
+    <div class="panel-title">Участники чата «@Model.ChatName»</div>
+
+    <h4 style="color: var(--text-primary);">Текущие участники</h4>
+    <ul class="list-group mb-4">
+        @foreach (var participant in Model.CurrentParticipants)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                @participant.Email
+                <form method="post" asp-page-handler="Remove" asp-route-chatId="@Model.ChatId" asp-route-userId="@participant.Id" style="display:inline;">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                </form>
+            </li>
+        }
+    </ul>
+
+    <h4 style="color: var(--text-primary);">Добавить пользователя</h4>
+    <form method="post" asp-page-handler="AddUser">
+        <input type="hidden" name="chatId" value="@Model.ChatId" />
+        <div class="input-group">
+            <select name="userId" class="form-select">
+                <option value="">-- Выберите пользователя --</option>
+                @foreach (var user in Model.AllUsers)
+                {
+                    <option value="@user.Id">@user.Email</option>
+                }
+            </select>
+            <button type="submit" class="btn btn-primary">Добавить</button>
+        </div>
+    </form>
+
+    <a asp-page="./Index" class="btn btn-outline-secondary mt-3">Назад</a>
+</div>

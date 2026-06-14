@@ -1,3 +1,0 @@
-# HELPME
-# HELPME
-# HELPME

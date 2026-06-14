@@ -1,0 +1,39 @@
+﻿@page
+@model BelovskayaMonitoring.Pages.Admin.Users.IndexModel
+@{
+    ViewData["Title"] = "Управление пользователями";
+}
+
+<div class="shield-panel">
+    <div class="panel-title">Управление пользователями</div>
+
+    @if (!string.IsNullOrEmpty(Model.StatusMessage))
+    {
+        <div class="alert alert-success" style="background-color: rgba(34,197,94,0.15); border-color: var(--accent-green); color: var(--accent-green);">@Model.StatusMessage</div>
+    }
+
+    <table class="table table-dark-striped">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Роли</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td>@user.Email</td>
+                    <td>@string.Join(", ", user.Roles)</td>
+                    <td>
+                        <a asp-page="./Edit" asp-route-userId="@user.Id" class="btn btn-primary btn-sm">Изменить</a>
+                        <form method="post" asp-page-handler="Delete" asp-route-userId="@user.Id" style="display:inline;" onsubmit="return confirm('Удалить пользователя @user.Email?');">
+                            <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

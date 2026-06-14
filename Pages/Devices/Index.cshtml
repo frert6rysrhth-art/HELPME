@@ -1,0 +1,170 @@
+﻿@page
+@model BelovskayaMonitoring.Pages.Devices.IndexModel
+@{
+    ViewData["Title"] = "Мониторинг сети";
+}
+
+<div class="shield-panel">
+    <div class="panel-title">Состояние оборудования</div>
+    <div class="row" id="deviceCards">
+        <!-- Карточки заполняются через JS -->
+    </div>
+</div>
+
+<div class="shield-panel">
+    <div class="panel-title">График загрузки каналов</div>
+    <canvas id="loadChart" width="400" height="200"></canvas>
+</div>
+
+<div class="shield-panel">
+    <div class="d-flex justify-content-between align-items-center panel-title" style="border-bottom: none; margin-bottom: 1rem;">
+        <span>Журнал событий</span>
+        <button id="exportBtn" class="btn btn-outline-success btn-sm">Экспорт в Excel</button>
+    </div>
+    <table class="table table-sm table-dark-striped" id="eventLogTable">
+        <thead>
+            <tr>
+                <th>Время</th>
+                <th>Устройство</th>
+                <th>Событие</th>
+                <th>Описание</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var log in Model.RecentEvents)
+            {
+                <tr>
+                    <td class="mono-font">@log.Timestamp.ToString("HH:mm:ss")</td>
+                    <td>@log.Device?.Name</td>
+                    <td>@log.EventType</td>
+                    <td>@log.Description</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chart.js/chart.min.js"></script>
+    <script src="~/lib/signalr/signalr.min.js"></script>
+    <script>
+        const monitoringConnection = new signalR.HubConnectionBuilder()
+            .withUrl("/monitoringHub")
+            .build();
+
+        const ctx = document.getElementById('loadChart').getContext('2d');
+        const loadChart = new Chart(ctx, {
+            type: 'line',
+            data: { datasets: [] },
+            options: {
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: { display: true, text: 'Время', color: '#a4abb7' },
+                        ticks: {
+                            callback: function(value) { return new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); },
+                            color: '#a4abb7'
+                        },
+                        grid: { color: '#4b5563' }
+                    },
+                    y: {
+                        beginAtZero: true, max: 100,
+                        title: { display: true, text: 'Загрузка %', color: '#a4abb7' },
+                        ticks: { color: '#a4abb7' },
+                        grid: { color: '#4b5563' }
+                    }
+                },
+                plugins: { legend: { labels: { color: '#e0e4e9' } } }
+            }
+        });
+
+        const deviceColors = {};
+        function getColor(deviceId) {
+            if (!deviceColors[deviceId]) {
+                deviceColors[deviceId] = `hsl(${Object.keys(deviceColors).length * 137 % 360}, 70%, 60%)`;
+            }
+            return deviceColors[deviceId];
+        }
+
+        const datasetsMap = {};
+
+        monitoringConnection.on("NewLoadPoint", (point) => {
+            const time = new Date(point.timestamp);
+            addPointToDataset(point.deviceId, point.deviceName, time, point.value);
+            updateChart();
+        });
+
+        monitoringConnection.on("DevicesStatus", (devices) => {
+            renderDeviceCards(devices);
+        });
+
+        monitoringConnection.on("StatusUpdated", (device) => {
+            updateDeviceCard(device);
+        });
+
+        function addPointToDataset(deviceId, deviceName, time, value) {
+            if (!datasetsMap[deviceId]) {
+                datasetsMap[deviceId] = {
+                    label: deviceName,
+                    data: [],
+                    borderColor: getColor(deviceId),
+                    backgroundColor: 'transparent',
+                    fill: false
+                };
+            }
+            datasetsMap[deviceId].data.push({ x: time.getTime(), y: value });
+            if (datasetsMap[deviceId].data.length > 300) {
+                datasetsMap[deviceId].data.shift();
+            }
+        }
+
+        function updateChart() {
+            loadChart.data.datasets = Object.values(datasetsMap);
+            loadChart.update();
+        }
+
+        function renderDeviceCards(devices) {
+            const container = document.getElementById('deviceCards');
+            container.innerHTML = '';
+            devices.forEach(device => {
+                const statusClass = device.status === 'Offline' ? 'offline' : device.status === 'Warning' ? 'warning' : 'online';
+                const indicatorClass = device.status === 'Offline' ? 'offline' : device.status === 'Warning' ? 'warning' : 'online';
+                const cardHtml = `
+                    <div class="col-md-4 mb-3" id="card_${device.id}">
+                        <div class="device-card ${statusClass}">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="indicator ${indicatorClass}"></span>
+                                <h5 class="card-title mb-0" style="font-size: 1.1rem;">${device.name}</h5>
+                            </div>
+                            <p class="card-text mb-1"><small style="color: var(--text-secondary);">${device.ipAddress}</small></p>
+                            <p class="card-text mono-font" style="font-size: 0.85rem;">Последняя проверка: ${device.lastChecked}</p>
+                        </div>
+                    </div>`;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        function updateDeviceCard(device) {
+            const card = document.getElementById(`card_${device.id}`);
+            if (!card) return;
+            const cardDiv = card.querySelector('.device-card');
+            cardDiv.className = cardDiv.className.replace(/online|offline|warning/g, '');
+            const newStatusClass = device.status === 'Offline' ? 'offline' : device.status === 'Warning' ? 'warning' : 'online';
+            cardDiv.classList.add('device-card', newStatusClass);
+            const indicator = cardDiv.querySelector('.indicator');
+            if (indicator) {
+                indicator.className = `indicator ${newStatusClass}`;
+            }
+            const lastCheckElem = cardDiv.querySelector('.mono-font');
+            if (lastCheckElem) {
+                lastCheckElem.textContent = `Последняя проверка: ${device.lastChecked}`;
+            }
+        }
+
+        monitoringConnection.start().catch(err => console.error(err));
+
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            window.location.href = '/api/export/events';
+        });
+    </script>
+}
