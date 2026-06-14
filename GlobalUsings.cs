@@ -1,1 +1,0 @@
-﻿global using BelovskayaMonitoring.Data;
